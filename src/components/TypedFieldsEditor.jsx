@@ -36,6 +36,7 @@ const COLUMN_CONFIGS = {
   'component:state':  { cols: ['name', 'type', 'default'] },
   'function:inputs':  { cols: ['name', 'type', 'default'] },
   'function:outputs': { cols: ['name', 'type'] },
+  'config:app_state': { cols: ['name', 'type', 'scope', 'persistence', 'default'], scopeOptions: ['global', 'auth', 'feature', 'page'], persistenceOptions: ['memory', 'session', 'local'] },
 }
 
 function getConfig(docType, sectionKey) {
@@ -72,7 +73,9 @@ function serializeItems(items, sectionKey, cols) {
   for (const item of items) {
     lines.push(`  - name: ${serStr(item.name || 'field')}`)
     lines.push(`    type: ${serStr(item.type || 'string')}`)
-    if (cols.includes('source')) lines.push(`    source: ${serStr(item.source || '')}`)
+    if (cols.includes('source') && item.source) lines.push(`    source: ${serStr(item.source)}`)
+    if (cols.includes('scope') && item.scope) lines.push(`    scope: ${serStr(item.scope)}`)
+    if (cols.includes('persistence') && item.persistence) lines.push(`    persistence: ${serStr(item.persistence)}`)
     if (cols.includes('required')) lines.push(`    required: ${item.required ? 'true' : 'false'}`)
     if (item.default) lines.push(`    default: ${serStr(item.default)}`)
   }
@@ -81,7 +84,7 @@ function serializeItems(items, sectionKey, cols) {
 
 // ── Field Row ────────────────────────────────────────────────────────────────
 
-function TypedFieldRow({ item, cols, sourceOptions, onChange, onRemove, enums, models }) {
+function TypedFieldRow({ item, cols, sourceOptions, scopeOptions, persistenceOptions, onChange, onRemove, enums, models }) {
   const [showDefault, setShowDefault] = useState(!!item.default)
   return (
     <div className="field-row">
@@ -106,6 +109,26 @@ function TypedFieldRow({ item, cols, sourceOptions, onChange, onRemove, enums, m
           >
             <option value="">source</option>
             {(sourceOptions || []).map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        )}
+        {cols.includes('scope') && (
+          <select
+            className="form-input typed-source-sel"
+            value={item.scope || ''}
+            onChange={e => onChange({ ...item, scope: e.target.value })}
+          >
+            <option value="">scope</option>
+            {(scopeOptions || []).map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        )}
+        {cols.includes('persistence') && (
+          <select
+            className="form-input typed-source-sel"
+            value={item.persistence || ''}
+            onChange={e => onChange({ ...item, persistence: e.target.value })}
+          >
+            <option value="">persist</option>
+            {(persistenceOptions || []).map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         )}
         {cols.includes('required') && (
@@ -154,6 +177,8 @@ export default function TypedFieldsEditor({ content, onChange, docType, sectionK
   const addItem = () => {
     const item = { name: 'field', type: 'string', default: '' }
     if (cols.includes('source')) item.source = ''
+    if (cols.includes('scope')) item.scope = ''
+    if (cols.includes('persistence')) item.persistence = ''
     if (cols.includes('required')) item.required = false
     update([...items, item])
   }
@@ -165,6 +190,8 @@ export default function TypedFieldsEditor({ content, onChange, docType, sectionK
   headerCols.push(<span key="name" style={{ width: 120, flexShrink: 0 }}>name</span>)
   headerCols.push(<span key="type" style={{ flex: 1 }}>type</span>)
   if (cols.includes('source')) headerCols.push(<span key="source" style={{ width: 80, flexShrink: 0 }}>source</span>)
+  if (cols.includes('scope')) headerCols.push(<span key="scope" style={{ width: 80, flexShrink: 0 }}>scope</span>)
+  if (cols.includes('persistence')) headerCols.push(<span key="persistence" style={{ width: 80, flexShrink: 0 }}>persist</span>)
   if (cols.includes('required')) headerCols.push(<span key="req" style={{ width: 36, flexShrink: 0 }}>req</span>)
   headerCols.push(<span key="actions" style={{ width: 52, flexShrink: 0 }} />)
 
@@ -195,6 +222,8 @@ export default function TypedFieldsEditor({ content, onChange, docType, sectionK
               item={item}
               cols={cols}
               sourceOptions={config?.sourceOptions}
+              scopeOptions={config?.scopeOptions}
+              persistenceOptions={config?.persistenceOptions}
               onChange={u => updateItem(i, u)}
               onRemove={() => removeItem(i)}
               enums={allEnums || []}

@@ -135,7 +135,7 @@ export const DEFAULT_BLUEPRINT_FILES = [
   },
   {
     path: 'blueprint/data/state.md',
-    content: "---\ntype: config\nid: state_config\nstatus: draft\n---\n\n# State Management\n\nApp state and local storage configuration.\n\n## app_state\n\n```yaml\napp_state: []\n```\n\n## local_storage\n\n```yaml\nlocal_storage:\n  engine: \"\"\n  collections: []\n```\n\n## state_management\n\n```yaml\nstate_management:\n  pattern: \"\"\n```",
+    content: "---\ntype: config\nid: state_config\nstatus: draft\n---\n\n# State Management\n\nApp-wide state definitions and storage configuration.\n\n## app_state\n\n```yaml\napp_state: []\n```\n\n## local_storage\n\n```yaml\nlocal_storage:\n  engine: \"\"\n  collections: []\n```\n\n## state_management\n\n```yaml\nstate_management:\n  pattern: \"\"\n```",
   },
   {
     path: 'blueprint/_changelog.md',
