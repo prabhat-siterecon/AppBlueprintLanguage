@@ -87,6 +87,12 @@ export default function FileTree({ files, activeFile, onSelect, onAddToFolder })
     })
   }
 
+  const countFiles = (node) => {
+    let n = 0
+    Object.values(node).forEach(v => { n += v._folder ? countFiles(v._children) : 1 })
+    return n
+  }
+
   const renderNode = (node, depth = 0) => {
     const entries = Object.entries(node).sort(([, a], [, b]) => {
       // Files before folders; within files, _ prefix comes first
@@ -98,7 +104,7 @@ export default function FileTree({ files, activeFile, onSelect, onAddToFolder })
       if (val._folder) {
         const isOpen = openFolders.has(key)
         const defaultType = FOLDER_DEFAULT_TYPE[key]
-        const childCount = Object.keys(val._children).length
+        const fileCount = countFiles(val._children)
         return (
           <div key={key} className="tree-folder">
             <div
@@ -111,7 +117,9 @@ export default function FileTree({ files, activeFile, onSelect, onAddToFolder })
               <span className="tree-folder-icon" onClick={() => toggleFolder(key)}>{Icons.folder}</span>
               <span className="tree-folder-name" onClick={() => toggleFolder(key)}>
                 {val._name}
-                {childCount === 0 && <span className="tree-folder-empty-hint"> (empty)</span>}
+              </span>
+              <span className={`tree-folder-count${fileCount === 0 ? ' tree-folder-count-empty' : ''}`}>
+                {fileCount}
               </span>
               {onAddToFolder && (
                 <button

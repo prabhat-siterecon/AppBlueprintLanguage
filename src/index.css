@@ -50,6 +50,8 @@ html, body, #root { height:100%; background:var(--bg-root); color:var(--text-pri
 .tree-folder-icon { display:inline-flex; flex-shrink:0; cursor:pointer; }
 .tree-folder-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
 .tree-folder-empty-hint { font-size:10px; font-weight:400; color:var(--text-muted); text-transform:none; letter-spacing:0; }
+.tree-folder-count { font-size:10px; font-weight:600; color:var(--text-muted); background:var(--bg-root); border:1px solid var(--border); border-radius:8px; padding:0px 6px; flex-shrink:0; font-family:var(--mono); line-height:18px; }
+.tree-folder-count-empty { color:var(--text-muted); opacity:0.5; }
 .tree-folder-add { opacity:0; padding:2px 5px; margin-left:auto; flex-shrink:0; }
 .tree-folder-label:hover .tree-folder-add { opacity:1; }
 .tree-children { padding-left:12px; }
