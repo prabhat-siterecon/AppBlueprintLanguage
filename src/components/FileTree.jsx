@@ -16,6 +16,22 @@ const VIRTUAL_FOLDERS = [
 
 const FOLDER_DEFAULT_TYPE = Object.fromEntries(VIRTUAL_FOLDERS.map(f => [f.path, f.defaultType]))
 
+const STATUS_LETTER = {
+  draft:         'd',
+  approved:      'A',
+  implementing:  '~',
+  implemented:   '✓',
+  deprecated:    '✗',
+}
+
+const STATUS_CLS = {
+  draft:         'sl-draft',
+  approved:      'sl-approved',
+  implementing:  'sl-implementing',
+  implemented:   'sl-implemented',
+  deprecated:    'sl-deprecated',
+}
+
 // Unicode symbol per type
 const TYPE_SYMBOL = {
   page:      { char: '▣', cls: 'ts-page' },
@@ -120,7 +136,10 @@ export default function FileTree({ files, activeFile, onSelect, onAddToFolder })
       const hasRefs = extractReferences(val.content).length > 0
       const fname = val.path.split('/').pop()
       const fileType = parsed.frontmatter.type
+      const fileStatus = parsed.frontmatter.status
       const sym = TYPE_SYMBOL[fileType]
+      const statusLetter = STATUS_LETTER[fileStatus]
+      const statusCls = STATUS_CLS[fileStatus]
 
       return (
         <div
@@ -133,9 +152,12 @@ export default function FileTree({ files, activeFile, onSelect, onAddToFolder })
             ? <span className={`tree-type-sym ${sym.cls}`}>{sym.char}</span>
             : Icons.file
           }
-          <span style={{ flex: 1 }}>{fname}</span>
-          {hasEmpty && <span className="badge empty" title="Has empty sections" />}
-          {hasRefs && <span className="badge refs" title="Has references" />}
+          <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fname}</span>
+          <span className="tree-item-end">
+            {statusLetter && <span className={`tree-status-letter ${statusCls}`} title={fileStatus}>{statusLetter}</span>}
+            {hasEmpty && <span className="badge empty" title="Has empty sections" />}
+            {hasRefs && <span className="badge refs" title="Has references" />}
+          </span>
         </div>
       )
     })

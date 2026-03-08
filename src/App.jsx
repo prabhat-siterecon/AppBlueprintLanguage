@@ -32,6 +32,7 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [activeSectionKey, setActiveSectionKey] = useState(null);
   const fileInputRef = useRef(null);
+  const dirInputRef = useRef(null);
 
   useEffect(() => {
     try { localStorage.setItem('abl_editor_files', JSON.stringify(files)); } catch {}
@@ -93,6 +94,32 @@ export default function App() {
     showToast('Added section: ' + name);
   }, [currentFile, updateFile, showToast]);
 
+  const handleFolderImport = useCallback((e) => {
+    const allFiles = Array.from(e.target.files).filter(f => f.name.endsWith('.md'));
+    e.target.value = '';
+    if (!allFiles.length) { showToast('No .md files found in folder'); return; }
+    if (!confirm(`Replace current blueprint with ${allFiles.length} imported file(s)?`)) return;
+    const results = [];
+    let done = 0;
+    allFiles.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        let path = file.webkitRelativePath || file.name;
+        const bpIdx = path.indexOf('blueprint/');
+        path = bpIdx >= 0 ? path.slice(bpIdx) : 'blueprint/' + path.split('/').slice(1).join('/');
+        results.push({ path, content: ev.target.result });
+        done++;
+        if (done === allFiles.length) {
+          results.sort((a, b) => a.path.localeCompare(b.path));
+          setFiles(results);
+          setActiveFile(null);
+          showToast(`Imported ${results.length} files`);
+        }
+      };
+      reader.readAsText(file);
+    });
+  }, [showToast]);
+
   const handleImport = useCallback((e) => {
     Array.from(e.target.files).forEach((file) => {
       const reader = new FileReader();
@@ -145,6 +172,23 @@ export default function App() {
     return map;
   }, [files]);
 
+  const appName = useMemo(() => {
+    const appFile = files.find(f => {
+      const { frontmatter } = parseFrontmatter(f.content);
+      return frontmatter.type === 'config' && (frontmatter.id === 'app_config' || f.path.endsWith('_app.md'));
+    });
+    if (!appFile) return null;
+    const { body } = parseFrontmatter(appFile.content);
+    const { sections } = extractSections(body);
+    const appSec = sections.find(s => s.heading.toLowerCase() === 'app');
+    if (!appSec) return null;
+    const yaml = extractYamlFromSection(appSec.content);
+    if (!yaml) return null;
+    const m = yaml.match(/^\s*name:\s*"?([^"\n]+?)"?\s*$/m);
+    const name = m?.[1]?.trim();
+    return name && name !== '""' ? name : null;
+  }, [files]);
+
   const { allEnums, allModels } = useMemo(() => {
     const enums = []
     const models = []
@@ -174,6 +218,7 @@ export default function App() {
       <div className="sidebar">
         <div className="sidebar-header">
           <h1><span>{"\u25C6"}</span> ABL Editor</h1>
+          {appName && <div className="sidebar-app-name">{appName}</div>}
           <div className="sidebar-stats">
             <span>{files.length} files</span>
             <span>{"\u00B7"}</span>
@@ -183,7 +228,9 @@ export default function App() {
             <button className="btn" onClick={() => setShowAddModal(true)}>{Icons.plus} New</button>
             <button className="btn" onClick={() => fileInputRef.current?.click()}>{Icons.upload} Import</button>
             <input ref={fileInputRef} type="file" accept=".md" multiple style={{ display: 'none' }} onChange={handleImport} />
+            <input ref={dirInputRef} type="file" webkitdirectory="" style={{ display: 'none' }} onChange={handleFolderImport} />
           </div>
+          <button className="btn open-blueprint-btn" onClick={() => dirInputRef.current?.click()}>{Icons.folder} Open Blueprint Folder</button>
           <button className="btn guide-open-btn" onClick={() => setShowGuide(true)}>? Getting Started</button>
         </div>
         <FileTree files={files} activeFile={activeFile} onSelect={(p) => { setActiveFile(p); setViewMode('edit'); setActiveSectionKey(null); }} onAddToFolder={(folder, type) => { setAddModalPreset({ folder, type }); setShowAddModal(true); }} />
