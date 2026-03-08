@@ -71,6 +71,36 @@ export default function App() {
     showToast('File deleted');
   }, [activeFile, showToast]);
 
+  const duplicateFile = useCallback((path) => {
+    const srcFile = files.find((f) => f.path === path);
+    if (!srcFile) return;
+    const folder = path.split('/').slice(0, -1).join('/');
+    const fname = path.split('/').pop();
+    const dotIdx = fname.lastIndexOf('.');
+    const base = dotIdx >= 0 ? fname.slice(0, dotIdx) : fname;
+    const ext = dotIdx >= 0 ? fname.slice(dotIdx) : '';
+    let newPath;
+    for (let v = 1; v <= 99; v++) {
+      const candidate = folder + '/' + base + '-d-v' + v + ext;
+      if (!files.some((f) => f.path === candidate)) { newPath = candidate; break; }
+    }
+    if (!newPath) { showToast('Could not create duplicate'); return; }
+    const { frontmatter, body } = parseFrontmatter(srcFile.content);
+    const newContent = serializeFrontmatter({ ...frontmatter, status: 'draft' }) + '\n\n' + body;
+    addFile(newPath, newContent);
+    showToast('Duplicate created as draft');
+  }, [files, addFile, showToast]);
+
+  const moveFile = useCallback((oldPath, newFolderPath) => {
+    const fileName = oldPath.split('/').pop();
+    const newPath = newFolderPath + '/' + fileName;
+    if (oldPath === newPath) return;
+    if (files.some((f) => f.path === newPath)) { showToast('A file with that name already exists there'); return; }
+    setFiles((prev) => prev.map((f) => f.path === oldPath ? { ...f, path: newPath } : f));
+    if (activeFile === oldPath) setActiveFile(newPath);
+    showToast('File moved');
+  }, [files, activeFile, showToast]);
+
   const updateFrontmatter = useCallback((newFm) => {
     if (!currentFile) return;
     const { body } = parseFrontmatter(currentFile.content);
@@ -205,6 +235,7 @@ export default function App() {
   }, [files]);
 
   const schema = parsed ? BLUEPRINT_SCHEMA[parsed.frontmatter.type] || BLUEPRINT_SCHEMA.general : null;
+  const isReadOnly = !!(parsed?.frontmatter?.status && parsed.frontmatter.status !== 'draft');
   const activeFieldTypes = activeSectionKey && schema?.fieldTypes?.[activeSectionKey];
 
   const refOptions = useMemo(() => {
@@ -288,7 +319,7 @@ export default function App() {
           <button className="btn open-blueprint-btn" onClick={() => dirInputRef.current?.click()}>{Icons.folder} Open Blueprint Folder</button>
           <button className="btn guide-open-btn" onClick={() => setShowGuide(true)}>? Getting Started</button>
         </div>
-        <FileTree files={files} activeFile={activeFile} onSelect={(p) => { setActiveFile(p); setViewMode('edit'); setActiveSectionKey(null); }} onAddToFolder={(folder, type) => { setAddModalPreset({ folder, type }); setShowAddModal(true); }} />
+        <FileTree files={files} activeFile={activeFile} onSelect={(p) => { setActiveFile(p); setViewMode('edit'); setActiveSectionKey(null); }} onAddToFolder={(folder, type) => { setAddModalPreset({ folder, type }); setShowAddModal(true); }} onMoveFile={moveFile} onDuplicate={duplicateFile} />
         <div className="sidebar-footer">
           <button className="btn" style={{ width: '100%' }} onClick={handleExportZip}>{Icons.download} Export ZIP</button>
         </div>
@@ -344,12 +375,18 @@ export default function App() {
             </div>
           ) : (<>
             <div className="editor-col">
+              {isReadOnly && (
+                <div className="readonly-banner">
+                  <span>This file is <strong>{parsed.frontmatter.status}</strong> — editing is locked.</span>
+                  <button className="btn sm" onClick={() => duplicateFile(activeFile)}>Duplicate as Draft</button>
+                </div>
+              )}
               <ReferencePanel file={currentFile} files={files} onNavigate={(p) => setActiveFile(p)} />
-              <FrontmatterEditor frontmatter={parsed.frontmatter} onChange={updateFrontmatter} refOptions={refOptions} />
+              <FrontmatterEditor frontmatter={parsed.frontmatter} onChange={updateFrontmatter} refOptions={refOptions} readOnly={isReadOnly} />
               <div className="editor-section" style={{ marginBottom: 24 }}>
                 <div className="section-header"><h3>Description</h3></div>
                 <div className="section-body">
-                  <textarea className="desc-editor" value={extractSections(parsed.body).description || ''} onChange={(e) => updateDescription(e.target.value)} placeholder="Describe what this blueprint defines..." />
+                  <textarea className="desc-editor" value={extractSections(parsed.body).description || ''} onChange={(e) => updateDescription(e.target.value)} placeholder="Describe what this blueprint defines..." readOnly={isReadOnly} />
                 </div>
               </div>
               {(() => {
@@ -371,11 +408,12 @@ export default function App() {
                       docSections={docSections}
                       allEnums={allEnums}
                       allModels={allModels}
+                      readOnly={isReadOnly}
                     />
                   );
                 });
               })()}
-              <button className="btn add-section-btn" onClick={() => { const name = prompt('Section name:'); if (name) addSection(name); }}>{Icons.plus} Add Section</button>
+              {!isReadOnly && <button className="btn add-section-btn" onClick={() => { const name = prompt('Section name:'); if (name) addSection(name); }}>{Icons.plus} Add Section</button>}
             </div>
             <SamplePanel sectionKey={activeSectionKey} fieldTypes={activeFieldTypes} />
           </>)}

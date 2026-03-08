@@ -1,7 +1,7 @@
 import React from 'react'
 import { BLUEPRINT_SCHEMA, STATUS_OPTIONS, SCOPE_OPTIONS } from '../data/schema'
 
-export default function FrontmatterEditor({ frontmatter, onChange, refOptions }) {
+export default function FrontmatterEditor({ frontmatter, onChange, refOptions, readOnly }) {
   const type = frontmatter.type || 'general'
   const schema = BLUEPRINT_SCHEMA[type] || BLUEPRINT_SCHEMA.general
 
@@ -20,6 +20,7 @@ export default function FrontmatterEditor({ frontmatter, onChange, refOptions })
                   <select
                     value={frontmatter[key] || ''}
                     onChange={(e) => onChange({ ...frontmatter, [key]: e.target.value })}
+                    disabled={readOnly}
                   >
                     <option value="">—</option>
                     {STATUS_OPTIONS.map((s) => (
@@ -28,17 +29,18 @@ export default function FrontmatterEditor({ frontmatter, onChange, refOptions })
                   </select>
                 ) : key === 'on_load' ? (
                   refOptions?.action?.length > 0 ? (
-                    <select value={frontmatter[key] || ''} onChange={e => onChange({ ...frontmatter, [key]: e.target.value })}>
+                    <select value={frontmatter[key] || ''} onChange={e => onChange({ ...frontmatter, [key]: e.target.value })} disabled={readOnly}>
                       <option value="">— none —</option>
                       {refOptions.action.map(id => <option key={id} value={id}>{id}</option>)}
                     </select>
                   ) : (
-                    <input type="text" value={frontmatter[key] || ''} placeholder="action_id" onChange={e => onChange({ ...frontmatter, [key]: e.target.value })} />
+                    <input type="text" value={frontmatter[key] || ''} placeholder="action_id" onChange={e => onChange({ ...frontmatter, [key]: e.target.value })} readOnly={readOnly} />
                   )
                 ) : key === 'scope' ? (
                   <select
                     value={frontmatter[key] || ''}
                     onChange={(e) => onChange({ ...frontmatter, [key]: e.target.value })}
+                    disabled={readOnly}
                   >
                     <option value="">—</option>
                     {SCOPE_OPTIONS.map((s) => (
@@ -49,6 +51,7 @@ export default function FrontmatterEditor({ frontmatter, onChange, refOptions })
                   <select
                     value={frontmatter[key] || ''}
                     onChange={(e) => onChange({ ...frontmatter, [key]: e.target.value })}
+                    disabled={readOnly}
                   >
                     {Object.keys(BLUEPRINT_SCHEMA).map((t) => (
                       <option key={t} value={t}>{t}</option>
@@ -63,6 +66,7 @@ export default function FrontmatterEditor({ frontmatter, onChange, refOptions })
                       key === 'implements' ? 'src/...' : ''
                     }
                     onChange={(e) => onChange({ ...frontmatter, [key]: e.target.value })}
+                    readOnly={readOnly}
                   />
                 )}
               </div>

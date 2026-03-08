@@ -63,6 +63,19 @@ html, body, #root { height:100%; background:var(--bg-root); color:var(--text-pri
 .tree-item .badge.empty { background:var(--yellow); }
 .tree-item .badge.refs { background:var(--accent); }
 .tree-status-letter { font-size:9px; font-family:var(--mono); font-weight:700; flex-shrink:0; line-height:1; }
+/* Read-only banner */
+.readonly-banner { display:flex; align-items:center; justify-content:space-between; gap:12px; background:color-mix(in srgb, var(--yellow) 12%, transparent); border:1px solid color-mix(in srgb, var(--yellow) 30%, transparent); border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:13px; color:var(--text-secondary); }
+.readonly-banner strong { color:var(--yellow); }
+
+/* Context menu */
+.context-menu { position:fixed; z-index:1000; background:var(--bg-elevated); border:1px solid var(--border); border-radius:8px; padding:4px; min-width:160px; box-shadow:0 8px 24px rgba(0,0,0,0.5); }
+.context-menu-label { font-size:10px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; padding:4px 8px 6px; }
+.context-menu-item { display:flex; align-items:center; gap:6px; width:100%; background:none; border:none; color:var(--text-primary); font-size:12px; font-family:var(--mono); padding:6px 8px; border-radius:5px; cursor:pointer; text-align:left; }
+.context-menu-item:hover { background:var(--bg-hover); }
+.context-menu-item.active { color:var(--accent); }
+.context-menu-check { width:12px; flex-shrink:0; }
+.context-menu-divider { border:none; border-top:1px solid var(--border); margin:4px 0; }
+
 .sl-draft        { color:var(--text-muted); }
 .sl-approved     { color:var(--accent); }
 .sl-implementing { color:var(--yellow); }

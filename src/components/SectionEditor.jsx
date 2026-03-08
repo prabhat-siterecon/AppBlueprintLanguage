@@ -8,7 +8,7 @@ import TypedFieldsEditor, { hasTypedFieldsConfig } from './TypedFieldsEditor'
 import CompositionEditor from './CompositionEditor'
 import ServiceEditor from './ServiceEditor'
 
-export default function SectionEditor({ heading, content, onChange, schema, isActive, onActivate, refOptions, docType, docSections, allEnums, allModels }) {
+export default function SectionEditor({ heading, content, onChange, schema, isActive, onActivate, refOptions, docType, docSections, allEnums, allModels, readOnly }) {
   const [expanded, setExpanded] = useState(true)
   const [formMode, setFormMode] = useState(false)
 
@@ -84,9 +84,9 @@ export default function SectionEditor({ heading, content, onChange, schema, isAc
               ? <ArrayFormEditor fields={Object.entries(fieldTypes).filter(([k]) => k !== '_array')} parsed={parsed} onChange={handleFormChange} refOptions={refOptions} />
               : <ObjectFormEditor fields={Object.entries(fieldTypes).filter(([k]) => k !== '_array')} parsed={parsed} onChange={handleFormChange} refOptions={refOptions} />
           ) : yaml !== null ? (
-            <textarea className="yaml-editor" value={yaml} onChange={e => handleYamlChange(e.target.value)} spellCheck={false} />
+            <textarea className="yaml-editor" value={yaml} onChange={e => handleYamlChange(e.target.value)} spellCheck={false} readOnly={readOnly} />
           ) : (
-            <textarea className="desc-editor" value={content} onChange={e => onChange(e.target.value)} />
+            <textarea className="desc-editor" value={content} onChange={e => onChange(e.target.value)} readOnly={readOnly} />
           )}
         </div>
       )}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { Icons } from './Icons'
 import { parseFrontmatter, extractSections, extractReferences, isSectionEmpty } from '../utils/parser'
 
@@ -45,10 +45,21 @@ const TYPE_SYMBOL = {
   general:   { char: '◉', cls: 'ts-general' },
 }
 
-export default function FileTree({ files, activeFile, onSelect, onAddToFolder }) {
+export default function FileTree({ files, activeFile, onSelect, onAddToFolder, onMoveFile, onDuplicate }) {
   const [openFolders, setOpenFolders] = useState(
     new Set(VIRTUAL_FOLDERS.map(f => f.path))
   )
+  const [contextMenu, setContextMenu] = useState(null) // { path, x, y }
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setContextMenu(null)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [contextMenu])
 
   const tree = useMemo(() => {
     // Start with all virtual folders
@@ -149,11 +160,14 @@ export default function FileTree({ files, activeFile, onSelect, onAddToFolder })
       const statusLetter = STATUS_LETTER[fileStatus]
       const statusCls = STATUS_CLS[fileStatus]
 
+      const currentFolder = val.path.split('/').slice(0, -1).join('/')
+
       return (
         <div
           key={key}
           className={`tree-item ${activeFile === val.path ? 'active' : ''}`}
           onClick={() => onSelect(val.path)}
+          onContextMenu={onMoveFile ? (e) => { e.preventDefault(); setContextMenu({ path: val.path, currentFolder, x: e.clientX, y: e.clientY }) } : undefined}
           style={{ paddingLeft: depth * 12 + 8 }}
         >
           {sym
@@ -171,5 +185,43 @@ export default function FileTree({ files, activeFile, onSelect, onAddToFolder })
     })
   }
 
-  return <div className="file-tree">{renderNode(tree)}</div>
+  return (
+    <>
+      <div className="file-tree">{renderNode(tree)}</div>
+      {contextMenu && (
+        <div
+          ref={menuRef}
+          className="context-menu"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+        >
+          {onDuplicate && (
+            <>
+              <div className="context-menu-label">Actions</div>
+              <button
+                className="context-menu-item"
+                onClick={() => { onDuplicate(contextMenu.path); setContextMenu(null) }}
+              >
+                Duplicate as Draft
+              </button>
+              <div className="context-menu-divider" />
+            </>
+          )}
+          <div className="context-menu-label">Move to folder</div>
+          {VIRTUAL_FOLDERS.map(f => (
+            <button
+              key={f.path}
+              className={`context-menu-item${f.path === contextMenu.currentFolder ? ' active' : ''}`}
+              onClick={() => {
+                onMoveFile(contextMenu.path, f.path)
+                setContextMenu(null)
+              }}
+            >
+              {f.path === contextMenu.currentFolder && <span className="context-menu-check">✓</span>}
+              {f.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  )
 }
