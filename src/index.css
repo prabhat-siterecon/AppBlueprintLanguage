@@ -524,3 +524,65 @@ html, body, #root { height:100%; background:var(--bg-root); color:var(--text-pri
 
 .comp-trigger-row { display:flex; align-items:center; gap:4px; }
 .comp-event-input { width:130px; min-width:100px; flex-shrink:0; }
+
+/* ── GitHub integration ────────────────────────────────────────────────────── */
+
+/* Header button */
+.gh-header-btn { gap:6px; font-family:var(--mono); font-size:11px; }
+.gh-header-connected { color:var(--text-primary); border-color:rgba(52,211,153,0.3); background:rgba(52,211,153,0.05); }
+.gh-header-connected:hover { background:rgba(52,211,153,0.12) !important; border-color:rgba(52,211,153,0.5) !important; }
+.gh-sync-dot { display:inline-block; width:6px; height:6px; border-radius:50%; flex-shrink:0; vertical-align:middle; margin-left:2px; }
+.gh-sync-dot.fresh { background:var(--green); }
+.gh-sync-dot.stale { background:var(--text-muted); }
+
+/* Modal shell */
+.gh-modal { width:520px; max-width:92vw; padding:0; display:flex; flex-direction:column; }
+.gh-modal-header { display:flex; align-items:center; gap:8px; padding:14px 18px; border-bottom:1px solid var(--border); }
+.gh-modal-header > span:not(.gh-user-badge):not(.gh-connected-title) { font-size:14px; font-weight:600; flex:1; }
+.gh-connected-title { font-size:13px; font-weight:600; font-family:var(--mono); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-primary); }
+.gh-modal-close { background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:20px; line-height:1; padding:0 2px; flex-shrink:0; }
+.gh-modal-close:hover { color:var(--text-primary); }
+.gh-user-badge { font-size:11px; color:var(--green); font-family:var(--mono); flex-shrink:0; }
+
+/* Modal body */
+.gh-modal-body { padding:18px 20px; display:flex; flex-direction:column; gap:12px; }
+.gh-modal-body label { display:block; font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.4px; margin-bottom:4px; }
+.gh-modal-body input, .gh-modal-body select { width:100%; background:var(--bg-root); border:1px solid var(--border); border-radius:var(--radius); padding:8px 10px; color:var(--text-primary); font-size:13px; font-family:var(--mono); outline:none; }
+.gh-modal-body input:focus, .gh-modal-body select:focus { border-color:var(--border-focus); }
+.gh-hint { font-size:12px; color:var(--text-muted); line-height:1.65; }
+.gh-hint code { font-family:var(--mono); font-size:11px; background:var(--bg-elevated); padding:1px 5px; border-radius:3px; color:var(--accent); }
+.gh-error { font-size:12px; color:var(--red); background:rgba(248,113,113,0.08); border:1px solid rgba(248,113,113,0.2); border-radius:var(--radius); padding:8px 12px; line-height:1.5; }
+.gh-ok    { font-size:12px; color:var(--green); background:rgba(52,211,153,0.08); border:1px solid rgba(52,211,153,0.2); border-radius:var(--radius); padding:8px 12px; line-height:1.5; }
+.gh-token-link { font-size:11px; color:var(--accent); text-decoration:none; font-family:var(--mono); }
+.gh-token-link:hover { text-decoration:underline; }
+.gh-token-link code { font-size:11px; }
+
+/* Repo list */
+.gh-repo-list { border:1px solid var(--border); border-radius:var(--radius); max-height:240px; overflow-y:auto; }
+.gh-repo-list::-webkit-scrollbar { width:4px; }
+.gh-repo-list::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+.gh-repo-item { padding:10px 14px; cursor:pointer; border-bottom:1px solid rgba(42,45,66,0.5); transition:background 0.1s; }
+.gh-repo-item:last-child { border-bottom:none; }
+.gh-repo-item:hover { background:var(--bg-hover); }
+.gh-repo-item.gh-repo-picked { background:var(--accent-bg); }
+.gh-repo-name { font-size:13px; font-weight:600; font-family:var(--mono); color:var(--text-primary); }
+.gh-repo-item.gh-repo-picked .gh-repo-name { color:var(--accent); }
+.gh-repo-meta { font-size:11px; color:var(--text-muted); margin-top:2px; }
+.gh-repo-hint { padding:20px; text-align:center; color:var(--text-muted); font-size:12px; }
+.gh-branch-row { display:flex; align-items:center; gap:10px; }
+.gh-branch-row label { min-width:fit-content; margin:0; text-transform:uppercase; font-size:11px; font-weight:600; color:var(--text-muted); letter-spacing:0.4px; }
+.gh-branch-row select { flex:1; }
+
+/* Sync view */
+.gh-sync-meta-block { display:flex; flex-direction:column; gap:0; border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.gh-sync-meta-row { display:flex; align-items:center; justify-content:space-between; padding:7px 12px; border-bottom:1px solid rgba(42,45,66,0.5); }
+.gh-sync-meta-row:last-child { border-bottom:none; }
+.gh-meta-label { font-size:10px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.4px; }
+.gh-meta-value { font-size:12px; font-family:var(--mono); color:var(--text-secondary); }
+.gh-sync-actions { display:flex; flex-direction:column; gap:8px; }
+.gh-pull-btn, .gh-push-btn { width:100%; justify-content:center; padding:11px; font-size:13px; font-weight:500; }
+.gh-pull-btn { background:rgba(52,211,153,0.07); border-color:rgba(52,211,153,0.2); color:var(--green); }
+.gh-pull-btn:hover:not(:disabled) { background:rgba(52,211,153,0.15); border-color:rgba(52,211,153,0.4); }
+.gh-push-btn { background:rgba(79,107,237,0.07); border-color:rgba(79,107,237,0.2); color:var(--accent); }
+.gh-push-btn:hover:not(:disabled) { background:rgba(79,107,237,0.15); border-color:rgba(79,107,237,0.4); }
+.btn:disabled { opacity:0.45; cursor:not-allowed; pointer-events:none; }

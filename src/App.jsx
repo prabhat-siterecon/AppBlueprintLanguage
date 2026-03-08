@@ -3,8 +3,10 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { BLUEPRINT_SCHEMA, DEFAULT_BLUEPRINT_FILES } from './data/schema';
 import { parseFrontmatter, serializeFrontmatter, extractSections, isSectionEmpty, extractYamlFromSection } from './utils/parser';
+import { fetchBlueprintTree, fetchFileContent, upsertFile } from './utils/github';
 import { parseEnums } from './components/DataModelEditor';
 import { Icons } from './components/Icons';
+import GitHubModal, { GHIcon, relTime } from './components/GitHubModal';
 import FileTree from './components/FileTree';
 import FrontmatterEditor from './components/FrontmatterEditor';
 import SectionEditor from './components/SectionEditor';
@@ -31,12 +33,23 @@ export default function App() {
   const [showGuide, setShowGuide] = useState(false);
   const [toast, setToast] = useState(null);
   const [activeSectionKey, setActiveSectionKey] = useState(null);
+  const [showGitHub, setShowGitHub] = useState(false);
+  const [githubConfig, setGithubConfig] = useState(() => {
+    try { const s = localStorage.getItem('abl_github_config'); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
   const fileInputRef = useRef(null);
   const dirInputRef = useRef(null);
 
   useEffect(() => {
     try { localStorage.setItem('abl_editor_files', JSON.stringify(files)); } catch {}
   }, [files]);
+
+  useEffect(() => {
+    try {
+      if (githubConfig) localStorage.setItem('abl_github_config', JSON.stringify(githubConfig));
+      else localStorage.removeItem('abl_github_config');
+    } catch {}
+  }, [githubConfig]);
 
   const showToast = useCallback((msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); }, []);
   const currentFile = files.find((f) => f.path === activeFile);
@@ -142,6 +155,40 @@ export default function App() {
     showToast('Blueprint exported as ZIP');
   }, [files, showToast]);
 
+  const handleGithubPull = useCallback(async () => {
+    const { token, owner, repo, branch } = githubConfig;
+    const tree = await fetchBlueprintTree(token, owner, repo, branch);
+    if (!tree.length) throw new Error('No blueprint .md files found in this repository on branch ' + branch);
+    // Fetch all files in parallel (batches of 6)
+    const results = [];
+    for (let i = 0; i < tree.length; i += 6) {
+      const batch = tree.slice(i, i + 6);
+      const contents = await Promise.all(batch.map(item => fetchFileContent(token, owner, repo, item.path, branch)));
+      batch.forEach((item, j) => results.push({ path: item.path, content: contents[j].content }));
+    }
+    setFiles(results);
+    setActiveFile(null);
+    setGithubConfig(prev => ({ ...prev, lastPulled: new Date().toISOString() }));
+    showToast(`Pulled ${results.length} files from GitHub`);
+  }, [githubConfig, showToast]);
+
+  const handleGithubPush = useCallback(async (onProgress) => {
+    const { token, owner, repo, branch } = githubConfig;
+    // Get existing SHAs so we can update rather than create
+    const tree = await fetchBlueprintTree(token, owner, repo, branch).catch(() => []);
+    const shaMap = {};
+    tree.forEach(item => { shaMap[item.path] = item.sha; });
+    const message = `Update blueprint from ABL Editor — ${new Date().toISOString().split('T')[0]}`;
+    onProgress?.(0, files.length);
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      await upsertFile(token, owner, repo, f.path, f.content, message, shaMap[f.path], branch);
+      onProgress?.(i + 1, files.length);
+    }
+    setGithubConfig(prev => ({ ...prev, lastPushed: new Date().toISOString() }));
+    showToast(`Pushed ${files.length} files to GitHub`);
+  }, [githubConfig, files, showToast]);
+
   const handleDownloadFile = useCallback(() => {
     if (!currentFile) return;
     saveAs(new Blob([currentFile.content], { type: 'text/markdown' }), currentFile.path.split('/').pop());
@@ -213,6 +260,14 @@ export default function App() {
     return { allEnums: enums, allModels: models }
   }, [files]);
 
+  const syncDotFresh = githubConfig?.repo && (() => {
+    const last = Math.max(
+      githubConfig.lastPulled ? new Date(githubConfig.lastPulled).getTime() : 0,
+      githubConfig.lastPushed ? new Date(githubConfig.lastPushed).getTime() : 0,
+    );
+    return last > 0 && (Date.now() - last) < 3_600_000;
+  })();
+
   return (
     <div className="app">
       <div className="sidebar">
@@ -240,7 +295,22 @@ export default function App() {
       </div>
       <div className="main">
         <div className="main-header">
-          <div>{activeFile ? <span className="path">{activeFile}</span> : <span className="path" style={{ color: 'var(--text-muted)' }}>No file selected</span>}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              className={`btn sm gh-header-btn${githubConfig?.repo ? ' gh-header-connected' : ''}`}
+              onClick={() => setShowGitHub(true)}
+              title={githubConfig?.repo
+                ? `${githubConfig.owner}/${githubConfig.repo} · ${githubConfig.branch}${githubConfig.lastPulled ? '\nPulled ' + relTime(githubConfig.lastPulled) : ''}`
+                : 'Connect GitHub repository'}
+            >
+              <GHIcon size={13} />
+              {githubConfig?.repo
+                ? <>{githubConfig.owner}/{githubConfig.repo} <span className={`gh-sync-dot ${syncDotFresh ? 'fresh' : 'stale'}`} /></>
+                : 'GitHub'
+              }
+            </button>
+            {activeFile ? <span className="path">{activeFile}</span> : <span className="path" style={{ color: 'var(--text-muted)' }}>No file selected</span>}
+          </div>
           <div className="tabs">
             <button className={'tab' + (viewMode === 'edit' ? ' active' : '')} onClick={() => setViewMode('edit')}>{Icons.edit} Edit</button>
             <button className={'tab' + (viewMode === 'view' ? ' active' : '')} onClick={() => setViewMode('view')}>{Icons.eye} View</button>
@@ -313,6 +383,15 @@ export default function App() {
       </div>
       {showAddModal && <AddFileModal onAdd={addFile} onClose={() => { setShowAddModal(false); setAddModalPreset(null); }} existingPaths={files.map((f) => f.path)} initialFolder={addModalPreset?.folder} initialType={addModalPreset?.type} />}
       {showGuide && <GettingStarted onClose={() => setShowGuide(false)} />}
+      {showGitHub && (
+        <GitHubModal
+          config={githubConfig}
+          onClose={() => setShowGitHub(false)}
+          onConfigChange={setGithubConfig}
+          onPull={handleGithubPull}
+          onPush={handleGithubPush}
+        />
+      )}
       <Toast message={toast} />
     </div>
   );
