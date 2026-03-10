@@ -1,5 +1,23 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useId } from 'react'
 import { Icons } from './Icons'
+
+function SearchSelect({ value, onChange, options, placeholder, className }) {
+  const id = useId()
+  return (
+    <>
+      <input
+        list={id}
+        className={className || 'form-input'}
+        value={value || ''}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder || ''}
+      />
+      <datalist id={id}>
+        {(options || []).map(o => <option key={o} value={o} />)}
+      </datalist>
+    </>
+  )
+}
 
 // ── Node type definitions ─────────────────────────────────────────────────────
 
@@ -79,15 +97,14 @@ function DataSourceEditor({ dataSource, onChange, refOptions }) {
     </button>
   )
   const ds = dataSource || { type: 'api', ref: '' }
-  const queryOpts = refOptions?.service   || []
-  const fnOpts    = refOptions?.['function'] || []
+  // Combine service doc IDs and svc.endpoint refs so both are available
+  const apiOpts = [
+    ...(refOptions?.service || []),
+    ...(refOptions?.serviceEndpoints || []),
+  ]
+  const fnOpts = refOptions?.['function'] || []
 
-  const mkRef = (ph) => <input className="form-input" value={ds.ref || ''} onChange={e => onChange({ ...ds, ref: e.target.value })} placeholder={ph} />
-  const mkSel = (opts, ph) => opts.length > 0
-    ? <select className="form-input" value={ds.ref || ''} onChange={e => onChange({ ...ds, ref: e.target.value })}>
-        <option value="">— {ph} —</option>{opts.map(id => <option key={id} value={id}>{id}</option>)}
-      </select>
-    : mkRef(ph)
+  const mkSel = (opts, ph) => <SearchSelect value={ds.ref || ''} onChange={v => onChange({ ...ds, ref: v })} options={opts} placeholder={ph} />
 
   return (
     <div className="comp-sub-block">
@@ -99,14 +116,58 @@ function DataSourceEditor({ dataSource, onChange, refOptions }) {
         <select className="form-input" value={ds.type} onChange={e => onChange({ type: e.target.value, ref: '' })}>
           {DATA_SOURCE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
-        {ds.type === 'api'        && mkSel(queryOpts, 'query_id')}
-        {ds.type === 'state'      && mkRef('state.key')}
-        {ds.type === 'parameter'  && mkRef('param_name')}
+        {ds.type === 'api'        && mkSel(apiOpts, 'svc_id or svc_id.endpoint_id')}
+        {ds.type === 'state'      && <SearchSelect value={ds.ref || ''} onChange={v => onChange({ ...ds, ref: v })} options={[]} placeholder="state.key" />}
+        {ds.type === 'parameter'  && <SearchSelect value={ds.ref || ''} onChange={v => onChange({ ...ds, ref: v })} options={[]} placeholder="param_name" />}
         {ds.type === 'function'   && mkSel(fnOpts, 'function_id')}
-        {ds.type === 'local_data' && mkRef('data description')}
+        {ds.type === 'local_data' && <SearchSelect value={ds.ref || ''} onChange={v => onChange({ ...ds, ref: v })} options={[]} placeholder="data description" />}
         {(ds.type === 'function' || ds.type === 'local_data') && (
           <input className="form-input" value={ds.transform || ''} onChange={e => onChange({ ...ds, transform: e.target.value })} placeholder={ds.type === 'function' ? 'transform expr' : 'inline value'} />
         )}
+      </div>
+      <input
+        className="form-input comp-ds-desc"
+        value={ds.description || ''}
+        onChange={e => onChange({ ...ds, description: e.target.value })}
+        placeholder="Description — what data this provides and how it's used"
+      />
+    </div>
+  )
+}
+
+// ── ConditionEditor ───────────────────────────────────────────────────────────
+
+function ConditionEditor({ condition, onChange, refOptions }) {
+  const [open, setOpen] = useState(!!condition)
+  const fnOpts = refOptions?.['function'] || []
+  if (!open) return (
+    <button className="btn sm comp-add-btn" onClick={() => { setOpen(true); onChange({ when: '', fn: '' }) }}>
+      {Icons.plus} Condition
+    </button>
+  )
+  const cond = condition || { when: '', fn: '' }
+  return (
+    <div className="comp-sub-block">
+      <div className="comp-sub-header">
+        <span className="comp-sub-label">Condition</span>
+        <button className="btn sm danger" onClick={() => { setOpen(false); onChange(null) }}>×</button>
+      </div>
+      <div className="comp-sub-body" style={{ gap: 6 }}>
+        <input
+          className="form-input"
+          value={cond.when || ''}
+          onChange={e => onChange({ ...cond, when: e.target.value })}
+          placeholder="When to show/hide this node (plain text description)"
+        />
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0, width: 70 }}>condition fn</span>
+          <SearchSelect
+            value={cond.fn || ''}
+            onChange={v => onChange({ ...cond, fn: v })}
+            options={fnOpts}
+            placeholder="function_id (optional)"
+          />
+        </div>
       </div>
     </div>
   )
@@ -179,13 +240,7 @@ function TriggersEditor({ triggers, onChange, refOptions }) {
               onChange={e => upd(i, { ...t, event: e.target.value })}
               placeholder="event_name"
             />
-            {actionOpts.length > 0
-              ? <select className="form-input" value={t.action || ''} onChange={e => upd(i, { ...t, action: e.target.value })}>
-                  <option value="">— action —</option>
-                  {actionOpts.map(id => <option key={id} value={id}>{id}</option>)}
-                </select>
-              : <input className="form-input" value={t.action || ''} onChange={e => upd(i, { ...t, action: e.target.value })} placeholder="action_id" />
-            }
+            <SearchSelect value={t.action || ''} onChange={v => upd(i, { ...t, action: v })} options={actionOpts} placeholder="action_id" />
             <button className="btn sm danger" onClick={() => rm(i)}>{Icons.trash}</button>
           </div>
         ))}
@@ -216,9 +271,10 @@ function NodeItem({ node, depth, onChange, onRemove, onDuplicate, refOptions }) 
 
   const kl = kindLabel(node)
   const kc = KIND_CLASS[nt] || 'cnk-group'
-  const hasDs       = !!node.dataSource
-  const hasTriggers = (node.triggers || []).length > 0
-  const childCount  = (node.children || []).length
+  const hasDs        = !!node.dataSource
+  const hasTriggers  = (node.triggers || []).length > 0
+  const hasCondition = !!node.condition
+  const childCount   = (node.children || []).length
 
   return (
     <div className={`comp-node${depth > 0 ? ' comp-node-nested' : ''}`}>
@@ -234,9 +290,10 @@ function NodeItem({ node, depth, onChange, onRemove, onDuplicate, refOptions }) 
           onClick={e => e.stopPropagation()}
           placeholder="node_name"
         />
-        {hasDs       && <span className="comp-badge comp-badge-ds">⬡ {node.dataSource.type}</span>}
-        {hasTriggers && <span className="comp-badge comp-badge-act">↗ {node.triggers.length}</span>}
-        {childCount  > 0 && <span className="comp-badge comp-badge-ch">{childCount}↓</span>}
+        {hasDs        && <span className="comp-badge comp-badge-ds">⬡ {node.dataSource.type}</span>}
+        {hasTriggers  && <span className="comp-badge comp-badge-act">↗ {node.triggers.length}</span>}
+        {hasCondition && <span className="comp-badge comp-badge-cond">? if</span>}
+        {childCount   > 0 && <span className="comp-badge comp-badge-ch">{childCount}↓</span>}
         <div className="feature-item-actions" onClick={e => e.stopPropagation()}>
           <button className="btn sm" onClick={onDuplicate} title="Duplicate">{Icons.duplicate}</button>
           <button className="btn sm danger" onClick={onRemove} title="Remove">{Icons.trash}</button>
@@ -285,7 +342,7 @@ function NodeItem({ node, depth, onChange, onRemove, onDuplicate, refOptions }) 
             {nt === 'component' && (
               <div className="comp-config-row">
                 <span className="comp-config-label">component</span>
-                <input className="form-input" value={node.component || ''} onChange={e => upd({ component: e.target.value })} placeholder="component_id" />
+                <SearchSelect value={node.component || ''} onChange={v => upd({ component: v })} options={refOptions?.component || []} placeholder="component_id" />
               </div>
             )}
 
@@ -306,7 +363,7 @@ function NodeItem({ node, depth, onChange, onRemove, onDuplicate, refOptions }) 
             </div>
           </div>
 
-          {/* Sub-blocks: params (component only), data source, triggers */}
+          {/* Sub-blocks: params (component only), data source, triggers, condition */}
           <div className="comp-node-extras">
             {nt === 'component' && (
               <ParamsEditor params={node.params || []} onChange={params => upd({ params })} />
@@ -317,6 +374,7 @@ function NodeItem({ node, depth, onChange, onRemove, onDuplicate, refOptions }) 
             {HAS_TRIGGERS.has(nt) && (
               <TriggersEditor triggers={node.triggers || []} onChange={triggers => upd({ triggers })} refOptions={refOptions} />
             )}
+            <ConditionEditor condition={node.condition} onChange={cond => upd({ condition: cond })} refOptions={refOptions} />
           </div>
 
           {/* Children */}

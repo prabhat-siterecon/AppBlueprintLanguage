@@ -180,8 +180,8 @@ API calls and database queries.
 
 ## queries
 
-\`\`\`yaml
-queries: []
+\`\`\`json
+{"queries":[]}
 \`\`\``,
   },
   {

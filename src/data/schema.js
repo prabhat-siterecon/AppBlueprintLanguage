@@ -12,10 +12,11 @@ export const BLUEPRINT_SCHEMA = {
   },
   component: {
     frontmatter: ['type', 'id', 'status', 'on_load', 'last_synced', 'implements'],
-    sections: ['params', 'state', 'composition', 'responsive'],
+    sections: ['params', 'state', 'lifecycle', 'composition', 'responsive'],
     fieldTypes: {
       params: { _array: true, name: 'string', type: 'string', required: 'boolean', default: 'any' },
       state: { _array: true, name: 'string', type: 'string', default: 'any' },
+      lifecycle: { on_mount: 'action_list', on_unmount: 'action_list', on_update: 'action_list' },
       composition: { _array: true, zone: 'string', component: 'string', style_token: 'string', notes: 'string' },
       responsive: { notes: 'string' },
     },
@@ -24,7 +25,7 @@ export const BLUEPRINT_SCHEMA = {
     frontmatter: ['type', 'id', 'status', 'scope', 'last_synced', 'implements'],
     sections: ['steps', 'error_handling'],
     fieldTypes: {
-      steps: { _array: true, id: 'string', type: 'enum:guard|api_call|transform|state_update|navigation', query: 'string', assign_to: 'string' },
+      steps: { _array: true, id: 'string', type: 'enum:guard|api_call|transform|state_update|navigation', description: 'string', ref: 'string' },
       error_handling: { default: 'string', retry: 'object' },
     },
   },

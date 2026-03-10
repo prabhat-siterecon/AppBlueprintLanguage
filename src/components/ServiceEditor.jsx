@@ -1,6 +1,134 @@
 import React, { useState, useMemo } from 'react'
 import { Icons } from './Icons'
 
+// ── Data Queries Form ──────────────────────────────────────────────────────────
+
+const QUERY_OPERATIONS = ['find', 'find_one', 'count', 'insert', 'update', 'upsert', 'delete', 'aggregate', 'custom']
+const emptyQuery = (n) => ({ id: 'query_' + (n + 1), name: '', description: '', collection: '', operation: 'find', params: [], filter: '', sort: '', limit: '', returns: '' })
+
+function QueryParamsEditor({ params, onAdd, onRemove, onUpdate }) {
+  return (
+    <div className="ep-list">
+      {params.length > 0 && (
+        <div className="ep-list-head">
+          <span style={{ flex: 1 }}>name</span>
+          <span style={{ width: 90 }}>type</span>
+          <span style={{ width: 64 }}>required</span>
+          <span style={{ flex: 2 }}>description</span>
+          <span style={{ width: 28 }} />
+        </div>
+      )}
+      {params.map((p, i) => (
+        <div key={i} className="ep-list-row">
+          <input className="form-input" style={{ flex: 1 }} value={p.name || ''} onChange={e => onUpdate(i, { name: e.target.value })} placeholder="param_name" />
+          <input className="form-input" style={{ width: 90 }} value={p.type || ''} onChange={e => onUpdate(i, { type: e.target.value })} placeholder="string" />
+          <label className="toggle-label" style={{ width: 64, flexShrink: 0 }}>
+            <input type="checkbox" checked={!!p.required} onChange={e => onUpdate(i, { required: e.target.checked })} />
+            <span>{p.required ? 'yes' : 'no'}</span>
+          </label>
+          <input className="form-input" style={{ flex: 2 }} value={p.description || ''} onChange={e => onUpdate(i, { description: e.target.value })} placeholder="Description" />
+          <button className="btn sm danger" style={{ width: 28, padding: 0, flexShrink: 0 }} onClick={() => onRemove(i)}>{Icons.trash}</button>
+        </div>
+      ))}
+      <button className="btn sm" style={{ marginTop: 6 }} onClick={onAdd}>{Icons.plus} Add Param</button>
+    </div>
+  )
+}
+
+function DataQueriesForm({ data, onCommit }) {
+  const queries = data.queries || []
+  const [openQuery, setOpenQuery] = useState(null)
+  const [openParams, setOpenParams] = useState({})
+
+  const commit = (qs) => onCommit({ ...data, queries: qs })
+  const addQuery = () => { const qs = [...queries, emptyQuery(queries.length)]; commit(qs); setOpenQuery(qs.length - 1) }
+  const removeQuery = (i) => { commit(queries.filter((_, idx) => idx !== i)); if (openQuery === i) setOpenQuery(null) }
+  const updateQuery = (i, patch) => commit(queries.map((q, idx) => idx === i ? { ...q, ...patch } : q))
+
+  const addParam = (qi) => updateQuery(qi, { params: [...(queries[qi].params || []), { name: '', type: 'string', required: false, description: '' }] })
+  const removeParam = (qi, pi) => updateQuery(qi, { params: (queries[qi].params || []).filter((_, i) => i !== pi) })
+  const updateParam = (qi, pi, patch) => updateQuery(qi, { params: (queries[qi].params || []).map((p, i) => i === pi ? { ...p, ...patch } : p) })
+
+  return (
+    <div className="service-editor">
+      {queries.map((q, qi) => {
+        const isOpen = openQuery === qi
+        return (
+          <div key={qi} className="svc-card">
+            <div className="svc-header" onClick={() => setOpenQuery(isOpen ? null : qi)}>
+              <span className="svc-chevron">{isOpen ? '▾' : '▸'}</span>
+              <div className="svc-title-group">
+                <span className="svc-name">{q.name || <em style={{ opacity: 0.4 }}>Unnamed query</em>}</span>
+                {q.collection && <span className="svc-baseurl">{q.collection}</span>}
+              </div>
+              <span className="ep-method-badge" style={{ background: '#0d1a2a', color: '#60a5fa', borderColor: '#1e3a5f', fontSize: 10, padding: '2px 7px' }}>{q.operation || 'find'}</span>
+              <button className="btn sm danger" onClick={e => { e.stopPropagation(); removeQuery(qi) }}>{Icons.trash}</button>
+            </div>
+            {isOpen && (
+              <div className="svc-body">
+                <div className="svc-meta">
+                  <div className="svc-field">
+                    <label>ID</label>
+                    <input className="form-input" value={q.id || ''} onChange={e => updateQuery(qi, { id: e.target.value })} placeholder="get_active_users" />
+                  </div>
+                  <div className="svc-field">
+                    <label>Name</label>
+                    <input className="form-input" value={q.name || ''} onChange={e => updateQuery(qi, { name: e.target.value })} placeholder="Get Active Users" />
+                  </div>
+                  <div className="svc-field" style={{ minWidth: 120, flex: 'none' }}>
+                    <label>Operation</label>
+                    <select className="form-input" value={q.operation || 'find'} onChange={e => updateQuery(qi, { operation: e.target.value })}>
+                      {QUERY_OPERATIONS.map(o => <option key={o}>{o}</option>)}
+                    </select>
+                  </div>
+                  <div className="svc-field">
+                    <label>Collection / Table</label>
+                    <input className="form-input" value={q.collection || ''} onChange={e => updateQuery(qi, { collection: e.target.value })} placeholder="users" />
+                  </div>
+                  <div className="svc-field svc-field-full">
+                    <label>Description</label>
+                    <input className="form-input" value={q.description || ''} onChange={e => updateQuery(qi, { description: e.target.value })} placeholder="What does this query do?" />
+                  </div>
+                  <div className="svc-field svc-field-full">
+                    <label>Filter / Where</label>
+                    <input className="form-input" value={q.filter || ''} onChange={e => updateQuery(qi, { filter: e.target.value })} placeholder="status = 'active' AND created_at > $date" />
+                  </div>
+                  <div className="svc-field">
+                    <label>Sort</label>
+                    <input className="form-input" value={q.sort || ''} onChange={e => updateQuery(qi, { sort: e.target.value })} placeholder="created_at desc" />
+                  </div>
+                  <div className="svc-field">
+                    <label>Limit</label>
+                    <input className="form-input" value={q.limit || ''} onChange={e => updateQuery(qi, { limit: e.target.value })} placeholder="20" />
+                  </div>
+                  <div className="svc-field svc-field-full">
+                    <label>Returns</label>
+                    <input className="form-input" value={q.returns || ''} onChange={e => updateQuery(qi, { returns: e.target.value })} placeholder="User[] or paginated list of user records" />
+                  </div>
+                </div>
+                <div className="svc-eps">
+                  <div className="svc-eps-header">
+                    <span className="svc-eps-label">Params</span>
+                  </div>
+                  <QueryParamsEditor
+                    params={q.params || []}
+                    onAdd={() => addParam(qi)}
+                    onRemove={(pi) => removeParam(qi, pi)}
+                    onUpdate={(pi, patch) => updateParam(qi, pi, patch)}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+      <button className="btn sm" style={{ marginTop: 10 }} onClick={addQuery}>{Icons.plus} Add Query</button>
+    </div>
+  )
+}
+
+// ── HTTP Service form vars ─────────────────────────────────────────────────────
+
 const METHOD_COLORS = {
   GET:     { bg: '#0d2a1a', text: '#4ade80', border: '#166534' },
   POST:    { bg: '#0d1f3a', text: '#60a5fa', border: '#1e3a5f' },
@@ -40,7 +168,9 @@ const emptyEndpoint = (n) => ({ id: 'ep_' + (n + 1), name: '', method: 'GET', pa
 export default function ServiceEditor({ content, onChange }) {
   const data = useMemo(() => extractServiceData(content), [content])
   const services = data.services || []
+  const isQueryDoc = data.queries !== undefined && data.services === undefined
 
+  const [mode, setMode] = useState('form')
   const [openService, setOpenService] = useState(null)
   const [openEndpoint, setOpenEndpoint] = useState({})
   const [activeTab, setActiveTab] = useState({})
@@ -93,7 +223,31 @@ export default function ServiceEditor({ content, onChange }) {
     updateEndpoint(si, ei, { [field]: (ep[field] || []).map((item, i) => i === idx ? { ...item, ...patch } : item) })
   }
 
+  const rawJson = useMemo(() => {
+    const m = content.match(/```json\n([\s\S]*?)```/)
+    return m ? m[1] : JSON.stringify({ services: [] }, null, 2)
+  }, [content])
+
   return (
+    <div>
+      <div className="dm-mode-bar">
+        <button className={`mode-tab${mode === 'form' ? ' active' : ''}`} onClick={() => setMode('form')}>Form</button>
+        <button className={`mode-tab${mode === 'json' ? ' active' : ''}`} onClick={() => setMode('json')}>JSON</button>
+      </div>
+      {mode === 'json' ? (
+        <textarea
+          className="yaml-editor"
+          style={{ marginTop: 8 }}
+          value={rawJson}
+          onChange={e => {
+            try { onChange(applyServiceData(content, JSON.parse(e.target.value))) }
+            catch { if (content.includes('```json')) onChange(content.replace(/```json\n[\s\S]*?```/, '```json\n' + e.target.value + '\n```')) }
+          }}
+          spellCheck={false}
+        />
+      ) : isQueryDoc ? (
+        <DataQueriesForm data={data} onCommit={d => onChange(applyServiceData(content, d))} />
+      ) : (
     <div className="service-editor">
       {services.map((svc, si) => {
         const isOpen = openService === si
@@ -256,6 +410,8 @@ export default function ServiceEditor({ content, onChange }) {
         )
       })}
       <button className="btn sm" style={{ marginTop: 10 }} onClick={addService}>{Icons.plus} Add Service</button>
+    </div>
+      )}
     </div>
   )
 }

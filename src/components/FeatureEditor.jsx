@@ -114,31 +114,42 @@ function serStr(v) {
 
 function AddButton({ label, templates, onAdd, onDeleteTemplate }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef(null)
+  const [dropPos, setDropPos] = useState({ top: 0, right: 0 })
+  const containerRef = useRef(null)
+  const btnRef = useRef(null)
 
   useEffect(() => {
     if (!open) return
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    const handler = (e) => { if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
+  const openMenu = () => {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setDropPos({ top: r.bottom + 4, right: window.innerWidth - r.right })
+    }
+    setOpen(o => !o)
+  }
+
   return (
-    <div className="add-feature-row" ref={ref}>
+    <div className="add-feature-row" ref={containerRef}>
       <button className="btn add-section-btn" onClick={() => onAdd(null)}>
         {Icons.plus} {label}
       </button>
       {templates.length > 0 && (
         <div className="template-picker-wrap">
           <button
+            ref={btnRef}
             className={`btn sm template-from-btn${open ? ' active' : ''}`}
-            onClick={() => setOpen(o => !o)}
+            onClick={openMenu}
             title="Add from template"
           >
             From Template {Icons.chevron}
           </button>
           {open && (
-            <div className="template-dropdown">
+            <div className="template-dropdown template-dropdown-fixed" style={{ top: dropPos.top, right: dropPos.right }}>
               <div className="template-dropdown-label">Saved Templates</div>
               {templates.map(t => (
                 <div key={t.id} className="template-dropdown-item">

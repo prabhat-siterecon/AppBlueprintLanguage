@@ -10,13 +10,13 @@ import GitHubModal, { GHIcon, relTime } from './components/GitHubModal';
 import FileTree from './components/FileTree';
 import FrontmatterEditor from './components/FrontmatterEditor';
 import SectionEditor from './components/SectionEditor';
-import ReferencePanel from './components/ReferencePanel';
 import GraphView from './components/GraphView';
 import DocumentViewer from './components/DocumentViewer';
 import AddFileModal from './components/AddFileModal';
 import Toast from './components/Toast';
-import SamplePanel from './components/SamplePanel';
+import RefSidePanel from './components/RefSidePanel';
 import GettingStarted from './components/GettingStarted';
+import AssetsPanel from './components/AssetsPanel';
 
 export default function App() {
   const [files, setFiles] = useState(() => {
@@ -33,6 +33,8 @@ export default function App() {
   const [showGuide, setShowGuide] = useState(false);
   const [toast, setToast] = useState(null);
   const [activeSectionKey, setActiveSectionKey] = useState(null);
+  const [collapseSignal, setCollapseSignal] = useState(0);
+  const [expandSignal, setExpandSignal] = useState(0);
   const [showGitHub, setShowGitHub] = useState(false);
   const [githubConfig, setGithubConfig] = useState(() => {
     try { const s = localStorage.getItem('abl_github_config'); return s ? JSON.parse(s) : null; } catch { return null; }
@@ -59,11 +61,49 @@ export default function App() {
     setFiles((prev) => prev.map((f) => (f.path === path ? { ...f, content } : f)));
   }, []);
 
+  // Tags derived from file frontmatter (field: "module")
+  const fileTags = useMemo(() => {
+    const map = {};
+    files.forEach(f => {
+      const { frontmatter } = parseFrontmatter(f.content);
+      const tags = (frontmatter.module || '').split(',').map(t => t.trim()).filter(Boolean);
+      if (tags.length) map[f.path] = tags;
+    });
+    return map;
+  }, [files]);
+
+  const addTag = useCallback((path, tag) => {
+    const t = tag.trim().toLowerCase().replace(/\s+/g, '-');
+    if (!t) return;
+    const file = files.find(f => f.path === path);
+    if (!file) return;
+    const { frontmatter, body } = parseFrontmatter(file.content);
+    const existing = (frontmatter.module || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (existing.includes(t)) return;
+    updateFile(path, serializeFrontmatter({ ...frontmatter, module: [...existing, t].join(', ') }) + '\n\n' + body);
+  }, [files, updateFile]);
+
+  const removeTag = useCallback((path, tag) => {
+    const file = files.find(f => f.path === path);
+    if (!file) return;
+    const { frontmatter, body } = parseFrontmatter(file.content);
+    const existing = (frontmatter.module || '').split(',').map(s => s.trim()).filter(Boolean);
+    const next = existing.filter(t => t !== tag);
+    const updated = { ...frontmatter };
+    if (next.length) updated.module = next.join(', '); else delete updated.module;
+    updateFile(path, serializeFrontmatter(updated) + '\n\n' + body);
+  }, [files, updateFile]);
+
   const addFile = useCallback((path, content) => {
     setFiles((prev) => [...prev, { path, content }]);
     setActiveFile(path);
     showToast('File created');
   }, [showToast]);
+
+  // Add an asset/code file without navigating away from current doc
+  const addAsset = useCallback((path, content) => {
+    setFiles(prev => prev.some(f => f.path === path) ? prev : [...prev, { path, content }]);
+  }, []);
 
   const deleteFile = useCallback((path) => {
     setFiles((prev) => prev.filter((f) => f.path !== path));
@@ -103,9 +143,24 @@ export default function App() {
 
   const updateFrontmatter = useCallback((newFm) => {
     if (!currentFile) return;
-    const { body } = parseFrontmatter(currentFile.content);
-    updateFile(currentFile.path, serializeFrontmatter(newFm) + '\n\n' + body);
-  }, [currentFile, updateFile]);
+    const { frontmatter: oldFm, body } = parseFrontmatter(currentFile.content);
+    const newContent = serializeFrontmatter(newFm) + '\n\n' + body;
+    const basename = currentFile.path.split('/').pop();
+    if (newFm.id && newFm.id !== oldFm.id && !basename.startsWith('_')) {
+      const folder = currentFile.path.split('/').slice(0, -1).join('/');
+      const newPath = folder + '/' + newFm.id + '.md';
+      if (files.some(f => f.path === newPath)) {
+        showToast('Cannot rename: a file with that name already exists');
+        updateFile(currentFile.path, newContent);
+      } else {
+        setFiles(prev => prev.map(f => f.path === currentFile.path ? { path: newPath, content: newContent } : f));
+        setActiveFile(newPath);
+        showToast('Renamed to ' + newFm.id + '.md');
+      }
+      return;
+    }
+    updateFile(currentFile.path, newContent);
+  }, [currentFile, files, updateFile, showToast]);
 
   const updateSection = useCallback((sectionIdx, newContent) => {
     if (!currentFile) return;
@@ -136,6 +191,31 @@ export default function App() {
     updateFile(currentFile.path, currentFile.content + '\n\n## ' + name + '\n\n```yaml\n' + key + ': {}\n```');
     showToast('Added section: ' + name);
   }, [currentFile, updateFile, showToast]);
+
+  const deleteSection = useCallback((sectionIdx) => {
+    if (!currentFile) return;
+    const { frontmatter, body } = parseFrontmatter(currentFile.content);
+    const { description, sections } = extractSections(body);
+    const next = sections.filter((_, i) => i !== sectionIdx);
+    const titleMatch = body.match(/^#\s+.*/m);
+    const title = titleMatch ? titleMatch[0] : '';
+    let newBody = title + '\n\n' + (description ? description + '\n\n' : '');
+    next.forEach((s) => { newBody += '## ' + s.heading + '\n\n' + s.content + '\n\n'; });
+    updateFile(currentFile.path, serializeFrontmatter(frontmatter) + '\n\n' + newBody.trim());
+    showToast('Section deleted');
+  }, [currentFile, updateFile, showToast]);
+
+  const renameSection = useCallback((sectionIdx, newName) => {
+    if (!currentFile || !newName.trim()) return;
+    const { frontmatter, body } = parseFrontmatter(currentFile.content);
+    const { description, sections } = extractSections(body);
+    sections[sectionIdx] = { ...sections[sectionIdx], heading: newName.trim() };
+    const titleMatch = body.match(/^#\s+.*/m);
+    const title = titleMatch ? titleMatch[0] : '';
+    let newBody = title + '\n\n' + (description ? description + '\n\n' : '');
+    sections.forEach((s) => { newBody += '## ' + s.heading + '\n\n' + s.content + '\n\n'; });
+    updateFile(currentFile.path, serializeFrontmatter(frontmatter) + '\n\n' + newBody.trim());
+  }, [currentFile, updateFile]);
 
   const handleFolderImport = useCallback((e) => {
     const allFiles = Array.from(e.target.files).filter(f => f.name.endsWith('.md'));
@@ -179,7 +259,15 @@ export default function App() {
 
   const handleExportZip = useCallback(async () => {
     const zip = new JSZip();
-    files.forEach((f) => { zip.file(f.path, f.content); });
+    files.forEach((f) => {
+      if (f.content && f.content.startsWith('data:')) {
+        // Binary asset (image stored as data URI) — write as binary
+        const b64 = f.content.split(',')[1];
+        if (b64) zip.file(f.path, b64, { base64: true });
+      } else {
+        zip.file(f.path, f.content);
+      }
+    });
     const blob = await zip.generateAsync({ type: 'blob' });
     saveAs(blob, 'blueprint.zip');
     showToast('Blueprint exported as ZIP');
@@ -225,14 +313,45 @@ export default function App() {
     showToast('File downloaded');
   }, [currentFile, showToast]);
 
+  const handleExportSelected = useCallback((paths) => {
+    const selectedFiles = files.filter(f => paths.includes(f.path));
+    const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const appTitle = (() => {
+      const appFile = files.find(f => f.path.endsWith('_app.md'));
+      if (appFile) {
+        const m = appFile.content.match(/title:\s*["']?([^"'\n]+)["']?/);
+        if (m) return m[1].trim();
+      }
+      return 'Blueprint';
+    })();
+    const lines = [
+      `# ${appTitle} — Blueprint Export`,
+      ``,
+      `**Generated:** ${date}  `,
+      `**Files:** ${selectedFiles.length}`,
+      ``,
+    ];
+    selectedFiles.forEach(f => {
+      lines.push(`\n---\n`);
+      lines.push(`## ${f.path}\n`);
+      lines.push(f.content);
+    });
+    const content = lines.join('\n');
+    saveAs(new Blob([content], { type: 'text/markdown' }), 'blueprint-export.md');
+    showToast(`Exported ${selectedFiles.length} file${selectedFiles.length === 1 ? '' : 's'}`);
+  }, [files, showToast]);
+
   const emptySummary = useMemo(() => {
     let count = 0;
     files.forEach((f) => {
+      if (!f.path.endsWith('.md')) return;
       const { body } = parseFrontmatter(f.content);
       extractSections(body).sections.forEach((s) => { if (isSectionEmpty(s.content)) count++; });
     });
     return count;
   }, [files]);
+
+  const mdFileCount = useMemo(() => files.filter(f => f.path.endsWith('.md')).length, [files]);
 
   const schema = parsed ? BLUEPRINT_SCHEMA[parsed.frontmatter.type] || BLUEPRINT_SCHEMA.general : null;
   const isReadOnly = !!(parsed?.frontmatter?.status && parsed.frontmatter.status !== 'draft');
@@ -245,6 +364,32 @@ export default function App() {
       if (frontmatter.type && frontmatter.id) {
         if (!map[frontmatter.type]) map[frontmatter.type] = [];
         map[frontmatter.type].push(frontmatter.id);
+      }
+      // Extract svc_id.endpoint_id pairs from service documents, and query IDs from data query documents
+      if (frontmatter.type === 'service') {
+        const jsonMatch = f.content.match(/```json\n([\s\S]*?)```/);
+        if (jsonMatch) {
+          try {
+            const data = JSON.parse(jsonMatch[1]);
+            (data.services || []).forEach(svc => {
+              (svc.endpoints || []).forEach(ep => {
+                if (svc.id && ep.id) {
+                  if (!map.serviceEndpoints) map.serviceEndpoints = [];
+                  map.serviceEndpoints.push(`${svc.id}.${ep.id}`);
+                }
+              });
+            });
+            // Data queries doc: expose docId.queryId pairs
+            if (data.queries && frontmatter.id) {
+              (data.queries || []).forEach(q => {
+                if (q.id) {
+                  if (!map.serviceEndpoints) map.serviceEndpoints = [];
+                  map.serviceEndpoints.push(`${frontmatter.id}.${q.id}`);
+                }
+              });
+            }
+          } catch {}
+        }
       }
     });
     return map;
@@ -306,7 +451,7 @@ export default function App() {
           <h1><span>{"\u25C6"}</span> ABL Editor</h1>
           {appName && <div className="sidebar-app-name">{appName}</div>}
           <div className="sidebar-stats">
-            <span>{files.length} files</span>
+            <span>{mdFileCount} files</span>
             <span>{"\u00B7"}</span>
             <span style={{ color: emptySummary > 0 ? 'var(--yellow)' : 'var(--green)' }}>{emptySummary} empty sections</span>
           </div>
@@ -319,7 +464,7 @@ export default function App() {
           <button className="btn open-blueprint-btn" onClick={() => dirInputRef.current?.click()}>{Icons.folder} Open Blueprint Folder</button>
           <button className="btn guide-open-btn" onClick={() => setShowGuide(true)}>? Getting Started</button>
         </div>
-        <FileTree files={files} activeFile={activeFile} onSelect={(p) => { setActiveFile(p); setViewMode('edit'); setActiveSectionKey(null); }} onAddToFolder={(folder, type) => { setAddModalPreset({ folder, type }); setShowAddModal(true); }} onMoveFile={moveFile} onDuplicate={duplicateFile} />
+        <FileTree files={files} activeFile={activeFile} onSelect={(p) => { setActiveFile(p); setViewMode('edit'); setActiveSectionKey(null); }} onAddToFolder={(folder, type) => { setAddModalPreset({ folder, type }); setShowAddModal(true); }} onMoveFile={moveFile} onDuplicate={duplicateFile} fileTags={fileTags} onAddTag={addTag} onRemoveTag={removeTag} onExportSelected={handleExportSelected} />
         <div className="sidebar-footer">
           <button className="btn" style={{ width: '100%' }} onClick={handleExportZip}>{Icons.download} Export ZIP</button>
         </div>
@@ -349,6 +494,7 @@ export default function App() {
           </div>
           <div className="actions">
             {currentFile && (<>
+              <button className="btn sm" title="Copy markdown to clipboard" onClick={() => { navigator.clipboard.writeText(currentFile.content).then(() => showToast('Copied to clipboard')); }}>{Icons.copy}</button>
               <button className="btn sm" onClick={handleDownloadFile}>{Icons.download}</button>
               <button className="btn sm danger" onClick={() => { if (confirm('Delete this file?')) deleteFile(activeFile); }}>{Icons.trash}</button>
             </>)}
@@ -381,7 +527,6 @@ export default function App() {
                   <button className="btn sm" onClick={() => duplicateFile(activeFile)}>Duplicate as Draft</button>
                 </div>
               )}
-              <ReferencePanel file={currentFile} files={files} onNavigate={(p) => setActiveFile(p)} />
               <FrontmatterEditor frontmatter={parsed.frontmatter} onChange={updateFrontmatter} refOptions={refOptions} readOnly={isReadOnly} />
               <div className="editor-section" style={{ marginBottom: 24 }}>
                 <div className="section-header"><h3>Description</h3></div>
@@ -389,33 +534,90 @@ export default function App() {
                   <textarea className="desc-editor" value={extractSections(parsed.body).description || ''} onChange={(e) => updateDescription(e.target.value)} placeholder="Describe what this blueprint defines..." readOnly={isReadOnly} />
                 </div>
               </div>
+              {(parsed.frontmatter.type === 'page' || parsed.frontmatter.type === 'component') && (
+                <AssetsPanel
+                  currentFile={currentFile}
+                  files={files}
+                  onAddAsset={addAsset}
+                  onUpdateFile={updateFile}
+                  onDeleteFile={deleteFile}
+                  readOnly={isReadOnly}
+                />
+              )}
               {(() => {
                 const { sections: docSections } = extractSections(parsed.body);
                 const docType = parsed.frontmatter.type;
-                return docSections.map((s, i) => {
-                  const sk = s.heading.toLowerCase().replace(/\s+/g, '_');
-                  return (
-                    <SectionEditor
-                      key={activeFile + '-' + i}
-                      heading={s.heading}
-                      content={s.content}
-                      onChange={(c) => updateSection(i, c)}
-                      schema={schema}
-                      isActive={activeSectionKey === sk}
-                      onActivate={() => setActiveSectionKey(sk)}
-                      refOptions={refOptions}
-                      docType={docType}
-                      docSections={docSections}
-                      allEnums={allEnums}
-                      allModels={allModels}
-                      readOnly={isReadOnly}
-                    />
-                  );
-                });
+                const schemaSections = new Set((schema?.sections || []).map(s => s.toLowerCase().replace(/\s+/g, '_')));
+                return (<>
+                  {docSections.length > 0 && (
+                    <div className="sections-toolbar">
+                      <button className="btn sm" onClick={() => setExpandSignal(n => n + 1)}>Expand all</button>
+                      <button className="btn sm" onClick={() => setCollapseSignal(n => n + 1)}>Collapse all</button>
+                    </div>
+                  )}
+                  {(() => {
+                    const isPairable = docType === 'page' || docType === 'component';
+                    const rendered = [];
+                    let skip = new Set();
+                    docSections.forEach((s, i) => {
+                      if (skip.has(i)) return;
+                      const sk = s.heading.toLowerCase().replace(/\s+/g, '_');
+                      const nextS = docSections[i + 1];
+                      const nextSk = nextS?.heading.toLowerCase().replace(/\s+/g, '_');
+                      const isPair = isPairable && sk === 'params' && nextSk === 'state';
+                      if (isPair) skip.add(i + 1);
+
+                      const makeSectionEditor = (sec, idx) => {
+                        const key2 = sec.heading.toLowerCase().replace(/\s+/g, '_');
+                        const custom = !schemaSections.has(key2);
+                        return (
+                          <SectionEditor
+                            key={activeFile + '-' + idx}
+                            heading={sec.heading}
+                            content={sec.content}
+                            onChange={(c) => updateSection(idx, c)}
+                            schema={schema}
+                            isActive={activeSectionKey === key2}
+                            onActivate={() => setActiveSectionKey(key2)}
+                            refOptions={refOptions}
+                            docType={docType}
+                            docSections={docSections}
+                            allEnums={allEnums}
+                            allModels={allModels}
+                            readOnly={isReadOnly}
+                            isCustom={custom}
+                            onDelete={custom && !isReadOnly ? () => deleteSection(idx) : null}
+                            onRename={custom && !isReadOnly ? (name) => renameSection(idx, name) : null}
+                            collapseSignal={collapseSignal}
+                            expandSignal={expandSignal}
+                          />
+                        );
+                      };
+
+                      if (isPair) {
+                        rendered.push(
+                          <div key={activeFile + '-pair-' + i} className="section-pair">
+                            {makeSectionEditor(s, i)}
+                            {makeSectionEditor(nextS, i + 1)}
+                          </div>
+                        );
+                      } else {
+                        rendered.push(makeSectionEditor(s, i));
+                      }
+                    });
+                    return rendered;
+                  })()}
+                </>);
               })()}
               {!isReadOnly && <button className="btn add-section-btn" onClick={() => { const name = prompt('Section name:'); if (name) addSection(name); }}>{Icons.plus} Add Section</button>}
             </div>
-            <SamplePanel sectionKey={activeSectionKey} fieldTypes={activeFieldTypes} />
+            <RefSidePanel
+              file={currentFile}
+              files={files}
+              activeSectionKey={activeSectionKey}
+              fieldTypes={activeFieldTypes}
+              onNavigate={(p) => { setActiveFile(p); setViewMode('edit'); setActiveSectionKey(null); }}
+            />
           </>)}
         </div>
       </div>

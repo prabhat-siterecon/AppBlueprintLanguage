@@ -40,4 +40,19 @@ export const Icons = {
   duplicate: (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="4" y="4" width="8" height="8" rx="1" /><path d="M2 10V2h8" /></svg>
   ),
+  copy: (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="4" width="8" height="9" rx="1" /><path d="M5 4V2a1 1 0 011-1h5a1 1 0 011 1v7a1 1 0 01-1 1h-2" /></svg>
+  ),
+  select: (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="2" width="10" height="10" rx="1.5" /><path d="M5 7l2 2 3-3" /></svg>
+  ),
+  export: (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 9V2M4 5l3-3 3 3M2 11h10" /></svg>
+  ),
+  image: (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="2" width="12" height="10" rx="1" /><circle cx="4.5" cy="5.5" r="1" /><path d="M1 9l3.5-3.5L7 8l2-2 4 3.5" /></svg>
+  ),
+  code: (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 4L1 7l3 3M10 4l3 3-3 3M8 2l-2 10" /></svg>
+  ),
 }
